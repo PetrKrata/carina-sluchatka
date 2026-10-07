@@ -110,7 +110,9 @@
 
   function formatNumber(value, digits = 1) {
     if (value == null || Number.isNaN(value)) return '—';
-    return Number(value).toLocaleString('cs-CZ', { maximumFractionDigits: digits });
+    return Number(value).toLocaleString('cs-CZ', {
+      maximumFractionDigits: digits
+    });
   }
 
   async function fetchTodayShows() {
@@ -173,6 +175,7 @@
 
     shows.forEach((show, index) => {
       const distance = Math.abs(minutesOfTime(show.cas) - now);
+
       if (distance < bestDistance) {
         bestDistance = distance;
         bestIndex = index;
@@ -277,7 +280,6 @@
     if (!show || !Number.isInteger(show.sluchatka)) return;
 
     const pin = prompt('Zadej PIN pro editaci:');
-
     if (pin === null) return;
 
     if (pin !== EDIT_PIN) {
@@ -305,6 +307,7 @@
 
   async function saveHeadphones() {
     const show = selectedShow();
+
     if (!show) {
       setStatus('Není vybraný pořad.', 'error');
       return;
@@ -369,7 +372,7 @@
     } catch (error) {
       console.error(error);
       setStatus('Uložení se nepodařilo.', 'error');
-      alert('Uložení se nepodařilo:\\n\\n' + error.message);
+      alert('Uložení se nepodařilo:\n\n' + error.message);
 
       if (editingUnlocked) {
         saveBtn.hidden = false;
@@ -390,17 +393,17 @@
 
       if (todayShows.length) {
         const show = selectedShow();
+
         if (!Number.isInteger(show?.sluchatka)) {
           setStatus(`Načteno pořadů: ${todayShows.length}`, 'info');
         }
       } else {
         setStatus('Pro dnešek nejsou ve Firestore žádné aktivní pořady.', 'error');
       }
-
     } catch (error) {
       console.error(error);
       setStatus('Pořady se nepodařilo načíst.', 'error');
-      alert('Pořady se nepodařilo načíst:\\n\\n' + error.message);
+      alert('Pořady se nepodařilo načíst:\n\n' + error.message);
     }
   }
 
@@ -483,6 +486,93 @@
     };
   }
 
+  function weekdayNameFromISO(iso) {
+    const [y, m, d] = iso.split('-').map(Number);
+    const day = new Date(y, m - 1, d).getDay();
+
+    return [
+      'Neděle',
+      'Pondělí',
+      'Úterý',
+      'Středa',
+      'Čtvrtek',
+      'Pátek',
+      'Sobota'
+    ][day];
+  }
+
+  function aggregateRanking(items, keyFn) {
+    const map = new Map();
+
+    for (const item of items) {
+      if (!Number.isInteger(item.sluchatka)) continue;
+
+      const key = keyFn(item);
+      if (!key) continue;
+
+      if (!map.has(key)) {
+        map.set(key, {
+          label: key,
+          totalHeadphones: 0,
+          enteredShows: 0,
+          max: 0
+        });
+      }
+
+      const row = map.get(key);
+      row.totalHeadphones += item.sluchatka;
+      row.enteredShows += 1;
+      row.max = Math.max(row.max, item.sluchatka);
+    }
+
+    return [...map.values()]
+      .map(row => ({
+        ...row,
+        average: row.enteredShows
+          ? row.totalHeadphones / row.enteredShows
+          : null
+      }))
+      .sort((a, b) =>
+        b.totalHeadphones - a.totalHeadphones ||
+        b.average - a.average ||
+        a.label.localeCompare(b.label, 'cs')
+      );
+  }
+
+  function renderRankingTable(title, rows, firstColumnTitle) {
+    return `
+      <h3 class="stats-subtitle">${escapeHtml(title)}</h3>
+
+      <div class="stats-table-wrap">
+        <table class="stats-table">
+          <thead>
+            <tr>
+              <th>Pořadí</th>
+              <th>${escapeHtml(firstColumnTitle)}</th>
+              <th>Celkem sluchátek</th>
+              <th>Uvedení se záznamem</th>
+              <th>Průměr</th>
+              <th>Maximum</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            ${rows.map((row, index) => `
+              <tr>
+                <td><strong>${index + 1}.</strong></td>
+                <td><strong>${escapeHtml(row.label)}</strong></td>
+                <td>${formatNumber(row.totalHeadphones, 0)}</td>
+                <td>${row.enteredShows}</td>
+                <td>${formatNumber(row.average, 1)}</td>
+                <td>${formatNumber(row.max, 0)}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+
   function renderStats() {
     const items = statsFiltered();
     const s = statsSummary(items);
@@ -490,17 +580,43 @@
     const byTitle = new Map();
 
     for (const item of items) {
-      const title = item.nazev.trim().replace(/\\s+/g, ' ');
-      if (!byTitle.has(title)) byTitle.set(title, []);
+      const title = item.nazev.trim().replace(/\s+/g, ' ');
+
+      if (!byTitle.has(title)) {
+        byTitle.set(title, []);
+      }
+
       byTitle.get(title).push(item);
     }
 
     const titleRows = [...byTitle]
-      .map(([title, rows]) => ({ title, ...statsSummary(rows) }))
+      .map(([title, rows]) => ({
+        title,
+        ...statsSummary(rows)
+      }))
       .sort((a, b) =>
         b.totalHeadphones - a.totalHeadphones ||
         a.title.localeCompare(b.title, 'cs')
       );
+
+    const weekdayRows = aggregateRanking(
+      items,
+      item => weekdayNameFromISO(item.datumISO)
+    );
+
+    const startTimeRows = aggregateRanking(
+      items,
+      item => item.cas
+    );
+
+    const showNameRows = aggregateRanking(
+      items,
+      item => item.nazev.trim().replace(/\s+/g, ' ')
+    );
+
+    const topWeekday = weekdayRows[0] || null;
+    const topStartTime = startTimeRows[0] || null;
+    const topShowName = showNameRows[0] || null;
 
     statsResults.innerHTML = `
       <div class="stats-cards">
@@ -511,6 +627,46 @@
         <div class="stats-card">Průměr na zadaný pořad<strong>${formatNumber(s.average, 1)}</strong></div>
         <div class="stats-card">Maximum<strong>${formatNumber(s.max, 0)}</strong></div>
       </div>
+
+      <div class="stats-cards">
+        <div class="stats-card">
+          TOP DEN
+          <strong>${topWeekday ? escapeHtml(topWeekday.label) : '—'}</strong>
+          ${topWeekday ? `${formatNumber(topWeekday.totalHeadphones, 0)} sluchátek` : ''}
+        </div>
+
+        <div class="stats-card">
+          TOP ZAČÁTEK
+          <strong>${topStartTime ? escapeHtml(topStartTime.label) : '—'}</strong>
+          ${topStartTime ? `${formatNumber(topStartTime.totalHeadphones, 0)} sluchátek` : ''}
+        </div>
+
+        <div class="stats-card">
+          TOP POŘAD
+          <strong>${topShowName ? escapeHtml(topShowName.label) : '—'}</strong>
+          ${topShowName ? `${formatNumber(topShowName.totalHeadphones, 0)} sluchátek` : ''}
+        </div>
+      </div>
+
+      ${renderRankingTable(
+        'Žebříček podle dne v týdnu',
+        weekdayRows,
+        'Den v týdnu'
+      )}
+
+      ${renderRankingTable(
+        'Žebříček podle začátku pořadu',
+        startTimeRows,
+        'Začátek pořadu'
+      )}
+
+      ${renderRankingTable(
+        'Žebříček podle názvu pořadu',
+        showNameRows,
+        'Pořad'
+      )}
+
+      <h3 class="stats-subtitle">Jednotlivé záznamy</h3>
 
       <div class="stats-table-wrap">
         <table class="stats-table">
@@ -523,13 +679,21 @@
               <th>Sluchátka</th>
             </tr>
           </thead>
+
           <tbody>
             ${items.map(item => `
               <tr class="${Number.isInteger(item.sluchatka) ? '' : 'stats-missing'}">
                 <td>${escapeHtml(isoToCs(item.datumISO))}</td>
                 <td>${escapeHtml(item.cas)}</td>
                 <td>${escapeHtml(item.nazev)}</td>
-                <td>${escapeHtml(item.typ === 'modry' ? 'modrý' : item.typ === 'hnedy' ? 'hnědý' : item.typ)}</td>
+                <td>${escapeHtml(
+                  item.typ === 'modry'
+                    ? 'modrý'
+                    : item.typ === 'hnedy'
+                      ? 'hnědý'
+                      : item.typ
+                )}</td>
+
                 <td class="${Number.isInteger(item.sluchatka) ? '' : 'stats-missing-cell'}">
                   ${Number.isInteger(item.sluchatka) ? item.sluchatka : '—'}
                 </td>
@@ -539,7 +703,7 @@
         </table>
       </div>
 
-      <h3 class="stats-subtitle">Souhrn podle pořadu</h3>
+      <h3 class="stats-subtitle">Detailní souhrn podle pořadu</h3>
 
       <div class="stats-table-wrap">
         <table class="stats-table">
@@ -554,6 +718,7 @@
               <th>Maximum</th>
             </tr>
           </thead>
+
           <tbody>
             ${titleRows.map(row => `
               <tr>
@@ -570,14 +735,21 @@
         </table>
       </div>
 
-      <div class="stats-note">„—“ znamená, že počet sluchátek nebyl zadán. Neinterpretuje se jako nula.</div>
+      <div class="stats-note">
+        Žebříčky jsou řazené podle celkového počtu vydaných sluchátek.
+        „—“ znamená, že počet sluchátek nebyl zadán; neinterpretuje se jako nula.
+      </div>
     `;
 
     statsExportBtn.disabled = items.length === 0;
   }
 
   async function loadStats() {
-    if (!statsFrom.value || !statsTo.value || statsFrom.value > statsTo.value) {
+    if (
+      !statsFrom.value ||
+      !statsTo.value ||
+      statsFrom.value > statsTo.value
+    ) {
       statsStatus.textContent = 'Vyber platné období.';
       statsStatus.className = 'stats-status error';
       return;
@@ -599,8 +771,10 @@
 
     } catch (error) {
       console.error(error);
-      statsStatus.textContent = 'Statistiky se nepodařilo načíst: ' + error.message;
+      statsStatus.textContent =
+        'Statistiky se nepodařilo načíst: ' + error.message;
       statsStatus.className = 'stats-status error';
+
     } finally {
       statsLoadBtn.disabled = false;
     }
@@ -616,41 +790,58 @@
 
     const rows = [
       ['Datum', 'Čas', 'Pořad', 'Typ', 'Počet sluchátek'],
+
       ...items.map(item => [
         isoToCs(item.datumISO),
         item.cas,
         item.nazev,
-        item.typ === 'modry' ? 'modrý' : item.typ === 'hnedy' ? 'hnědý' : item.typ,
-        Number.isInteger(item.sluchatka) ? item.sluchatka : ''
+        item.typ === 'modry'
+          ? 'modrý'
+          : item.typ === 'hnedy'
+            ? 'hnědý'
+            : item.typ,
+        Number.isInteger(item.sluchatka)
+          ? item.sluchatka
+          : ''
       ])
     ];
 
     const csv = rows
       .map(row => row.map(csvValue).join(';'))
-      .join('\\r\\n');
+      .join('\r\n');
 
-    const blob = new Blob(['\\uFEFF', csv], {
-      type: 'text/csv;charset=utf-8'
-    });
+    const blob = new Blob(
+      ['\uFEFF', csv],
+      { type: 'text/csv;charset=utf-8' }
+    );
 
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
 
     a.href = url;
-    a.download = `sluchatka_${statsFrom.value}_${statsTo.value}.csv`;
+    a.download =
+      `sluchatka_${statsFrom.value}_${statsTo.value}.csv`;
 
     document.body.appendChild(a);
     a.click();
     a.remove();
 
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    setTimeout(
+      () => URL.revokeObjectURL(url),
+      1000
+    );
   }
 
   function openStats() {
     statsPanel.hidden = false;
 
-    if (!statsFrom.value) statsFrom.value = firstDayOfMonth();
-    if (!statsTo.value) statsTo.value = lastDayOfMonth();
+    if (!statsFrom.value) {
+      statsFrom.value = firstDayOfMonth();
+    }
+
+    if (!statsTo.value) {
+      statsTo.value = lastDayOfMonth();
+    }
   }
 
   function closeStats() {
@@ -659,7 +850,9 @@
 
   headphonesInput.addEventListener('input', () => {
     headphonesInput.value =
-      headphonesInput.value.replace(/\\D/g, '').slice(0, 3);
+      headphonesInput.value
+        .replace(/\D/g, '')
+        .slice(0, 3);
   });
 
   headphonesInput.addEventListener('keydown', event => {
@@ -669,29 +862,66 @@
     }
   });
 
-  showSelect.addEventListener('change', updateSelectedShow);
-  saveBtn.addEventListener('click', saveHeadphones);
-  editBtn.addEventListener('click', unlockEditing);
-  refreshBtn.addEventListener('click', load);
+  showSelect.addEventListener(
+    'change',
+    updateSelectedShow
+  );
 
-  changeShowBtn.addEventListener('click', () => {
-    showSelect.focus();
-    showSelect.click();
-  });
+  saveBtn.addEventListener(
+    'click',
+    saveHeadphones
+  );
 
-  statsBtn.addEventListener('click', openStats);
-  statsCloseBtn.addEventListener('click', closeStats);
-  statsLoadBtn.addEventListener('click', loadStats);
-  statsExportBtn.addEventListener('click', exportStatsCsv);
+  editBtn.addEventListener(
+    'click',
+    unlockEditing
+  );
 
-  statsFilter.addEventListener('change', () => {
-    if (statsData.length) {
-      renderStats();
-      statsStatus.textContent =
-        `Zobrazeno ${statsFiltered().length} pořadů za období ` +
-        `${isoToCs(statsFrom.value)} – ${isoToCs(statsTo.value)}.`;
+  refreshBtn.addEventListener(
+    'click',
+    load
+  );
+
+  changeShowBtn.addEventListener(
+    'click',
+    () => {
+      showSelect.focus();
+      showSelect.click();
     }
-  });
+  );
+
+  statsBtn.addEventListener(
+    'click',
+    openStats
+  );
+
+  statsCloseBtn.addEventListener(
+    'click',
+    closeStats
+  );
+
+  statsLoadBtn.addEventListener(
+    'click',
+    loadStats
+  );
+
+  statsExportBtn.addEventListener(
+    'click',
+    exportStatsCsv
+  );
+
+  statsFilter.addEventListener(
+    'change',
+    () => {
+      if (statsData.length) {
+        renderStats();
+
+        statsStatus.textContent =
+          `Zobrazeno ${statsFiltered().length} pořadů za období ` +
+          `${isoToCs(statsFrom.value)} – ${isoToCs(statsTo.value)}.`;
+      }
+    }
+  );
 
   load();
 })();
