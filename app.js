@@ -76,6 +76,10 @@
       `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}` +
       `/databases/${encodeURIComponent(DATABASE_ID)}/documents:runQuery`;
 
+    // DŮLEŽITÉ:
+    // Dotaz filtruje pouze podle datumISO.
+    // Řazení podle času provedeme až v JavaScriptu,
+    // takže Firestore nepotřebuje kompozitní index.
     const response = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -88,13 +92,7 @@
               op: 'EQUAL',
               value: { stringValue: dateISO }
             }
-          },
-          orderBy: [
-            {
-              field: { fieldPath: 'cas' },
-              direction: 'ASCENDING'
-            }
-          ]
+          }
         }
       })
     });
@@ -130,7 +128,6 @@
     if (!shows.length) return -1;
 
     const now = nowMinutes();
-
     let bestIndex = 0;
     let bestDistance = Infinity;
 
@@ -199,7 +196,6 @@
       show.typ === 'modry' ? 'Modrý pořad' :
       show.typ === 'hnedy' ? 'Hnědý pořad' : '';
 
-    // Když už počet existuje, ukážeme ho. Později ho zamkneme PINem.
     headphonesInput.value =
       Number.isInteger(show.sluchatka) ? String(show.sluchatka) : '';
 
