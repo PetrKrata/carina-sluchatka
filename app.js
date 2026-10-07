@@ -4,9 +4,6 @@
   const PROJECT_ID = 'carina-sluchatka';
   const DATABASE_ID = '(default)';
   const COLLECTION = 'porady';
-
-  // PIN chrání jen proti běžnému / náhodnému přepsání.
-  // Protože jde o klientský JavaScript, není to plnohodnotné zabezpečení.
   const EDIT_PIN = '123258';
 
   const FIRESTORE_BASE =
@@ -22,9 +19,21 @@
   const status = document.getElementById('status');
   const refreshBtn = document.getElementById('refreshBtn');
   const changeShowBtn = document.getElementById('changeShowBtn');
+  const statsBtn = document.getElementById('statsBtn');
+
+  const statsPanel = document.getElementById('statsPanel');
+  const statsCloseBtn = document.getElementById('statsCloseBtn');
+  const statsFrom = document.getElementById('statsFrom');
+  const statsTo = document.getElementById('statsTo');
+  const statsFilter = document.getElementById('statsFilter');
+  const statsLoadBtn = document.getElementById('statsLoadBtn');
+  const statsExportBtn = document.getElementById('statsExportBtn');
+  const statsStatus = document.getElementById('statsStatus');
+  const statsResults = document.getElementById('statsResults');
 
   let todayShows = [];
   let editingUnlocked = false;
+  let statsData = [];
 
   function localISODate(date = new Date()) {
     return [
@@ -32,6 +41,15 @@
       String(date.getMonth() + 1).padStart(2, '0'),
       String(date.getDate()).padStart(2, '0')
     ].join('-');
+  }
+
+  function firstDayOfMonth(date = new Date()) {
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-01`;
+  }
+
+  function lastDayOfMonth(date = new Date()) {
+    const d = new Date(date.getFullYear(), date.getMonth() + 1, 0);
+    return localISODate(d);
   }
 
   function formatDateCs(date = new Date()) {
@@ -43,9 +61,15 @@
     });
   }
 
+  function isoToCs(iso) {
+    if (!iso) return '';
+    const [y, m, d] = iso.split('-');
+    return `${d}.${m}.${y}`;
+  }
+
   function minutesOfTime(time) {
-    const [h, m] = String(time).split(':').map(Number);
-    return h * 60 + m;
+    const [h, m] = String(time || '').split(':').map(Number);
+    return (h || 0) * 60 + (m || 0);
   }
 
   function nowMinutes() {
@@ -73,6 +97,20 @@
   function setStatus(text, type = 'info') {
     status.textContent = text;
     status.className = `status ${type}`;
+  }
+
+  function escapeHtml(text) {
+    return String(text ?? '')
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&#039;');
+  }
+
+  function formatNumber(value, digits = 1) {
+    if (value == null || Number.isNaN(value)) return '—';
+    return Number(value).toLocaleString('cs-CZ', { maximumFractionDigits: digits });
   }
 
   async function fetchTodayShows() {
@@ -135,7 +173,6 @@
 
     shows.forEach((show, index) => {
       const distance = Math.abs(minutesOfTime(show.cas) - now);
-
       if (distance < bestDistance) {
         bestDistance = distance;
         bestIndex = index;
@@ -241,9 +278,7 @@
 
     const pin = prompt('Zadej PIN pro editaci:');
 
-    if (pin === null) {
-      return;
-    }
+    if (pin === null) return;
 
     if (pin !== EDIT_PIN) {
       setStatus('Nesprávný PIN.', 'error');
@@ -258,7 +293,6 @@
 
     saveBtn.hidden = false;
     saveBtn.disabled = false;
-
     editBtn.hidden = true;
 
     setStatus('Editace odemčena.', 'info');
@@ -271,7 +305,6 @@
 
   async function saveHeadphones() {
     const show = selectedShow();
-
     if (!show) {
       setStatus('Není vybraný pořad.', 'error');
       return;
@@ -336,9 +369,8 @@
     } catch (error) {
       console.error(error);
       setStatus('Uložení se nepodařilo.', 'error');
-      alert('Uložení se nepodařilo:\n\n' + error.message);
+      alert('Uložení se nepodařilo:\\n\\n' + error.message);
 
-      // Když šlo o editaci a zápis selhal, editace zůstane odemčená.
       if (editingUnlocked) {
         saveBtn.hidden = false;
         saveBtn.disabled = false;
@@ -353,13 +385,11 @@
 
     try {
       const currentId = showSelect.value || null;
-
       todayShows = await fetchTodayShows();
       renderShows(currentId);
 
       if (todayShows.length) {
         const show = selectedShow();
-
         if (!Number.isInteger(show?.sluchatka)) {
           setStatus(`Načteno pořadů: ${todayShows.length}`, 'info');
         }
@@ -370,13 +400,266 @@
     } catch (error) {
       console.error(error);
       setStatus('Pořady se nepodařilo načíst.', 'error');
-      alert('Pořady se nepodařilo načíst:\n\n' + error.message);
+      alert('Pořady se nepodařilo načíst:\\n\\n' + error.message);
     }
+  }
+
+  // =========================================================
+  // STATISTIKY
+  // =========================================================
+
+  async function fetchAllShows() {
+    const all = [];
+    let pageToken = '';
+
+    do {
+      const url = new URL(`${FIRESTORE_BASE}/${COLLECTION}`);
+      url.searchParams.set('pageSize', '1000');
+
+      if (pageToken) {
+        url.searchParams.set('pageToken', pageToken);
+      }
+
+      const response = await fetch(url.toString(), { method: 'GET' });
+
+      if (!response.ok) {
+        const body = await response.text();
+        throw new Error(`Firestore HTTP ${response.status}: ${body}`);
+      }
+
+      const data = await response.json();
+
+      for (const doc of data.documents || []) {
+        const f = doc.fields || {};
+
+        all.push({
+          id: documentId(doc.name),
+          datumISO: fieldString(f, 'datumISO'),
+          cas: fieldString(f, 'cas'),
+          nazev: fieldString(f, 'nazev'),
+          typ: fieldString(f, 'typ'),
+          aktivni: fieldBool(f, 'aktivni'),
+          sluchatka: fieldInteger(f, 'sluchatka')
+        });
+      }
+
+      pageToken = data.nextPageToken || '';
+
+    } while (pageToken);
+
+    return all;
+  }
+
+  function statsFiltered() {
+    const from = statsFrom.value;
+    const to = statsTo.value;
+    const filter = statsFilter.value;
+
+    return statsData
+      .filter(item => item.datumISO >= from && item.datumISO <= to)
+      .filter(item => {
+        if (filter === 'entered') return Number.isInteger(item.sluchatka);
+        if (filter === 'missing') return !Number.isInteger(item.sluchatka);
+        return true;
+      })
+      .sort((a, b) =>
+        a.datumISO.localeCompare(b.datumISO) ||
+        minutesOfTime(a.cas) - minutesOfTime(b.cas) ||
+        a.nazev.localeCompare(b.nazev, 'cs')
+      );
+  }
+
+  function statsSummary(items) {
+    const entered = items.filter(item => Number.isInteger(item.sluchatka));
+    const totalHeadphones = entered.reduce((sum, item) => sum + item.sluchatka, 0);
+
+    return {
+      total: items.length,
+      entered: entered.length,
+      missing: items.length - entered.length,
+      totalHeadphones,
+      average: entered.length ? totalHeadphones / entered.length : null,
+      max: entered.length ? Math.max(...entered.map(i => i.sluchatka)) : null
+    };
+  }
+
+  function renderStats() {
+    const items = statsFiltered();
+    const s = statsSummary(items);
+
+    const byTitle = new Map();
+
+    for (const item of items) {
+      const title = item.nazev.trim().replace(/\\s+/g, ' ');
+      if (!byTitle.has(title)) byTitle.set(title, []);
+      byTitle.get(title).push(item);
+    }
+
+    const titleRows = [...byTitle]
+      .map(([title, rows]) => ({ title, ...statsSummary(rows) }))
+      .sort((a, b) =>
+        b.totalHeadphones - a.totalHeadphones ||
+        a.title.localeCompare(b.title, 'cs')
+      );
+
+    statsResults.innerHTML = `
+      <div class="stats-cards">
+        <div class="stats-card">Pořadů celkem<strong>${s.total}</strong></div>
+        <div class="stats-card">Se zadaným počtem<strong>${s.entered}</strong></div>
+        <div class="stats-card">Bez záznamu<strong>${s.missing}</strong></div>
+        <div class="stats-card">Celkem půjčeno<strong>${formatNumber(s.totalHeadphones, 0)}</strong></div>
+        <div class="stats-card">Průměr na zadaný pořad<strong>${formatNumber(s.average, 1)}</strong></div>
+        <div class="stats-card">Maximum<strong>${formatNumber(s.max, 0)}</strong></div>
+      </div>
+
+      <div class="stats-table-wrap">
+        <table class="stats-table">
+          <thead>
+            <tr>
+              <th>Datum</th>
+              <th>Čas</th>
+              <th>Pořad</th>
+              <th>Typ</th>
+              <th>Sluchátka</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${items.map(item => `
+              <tr class="${Number.isInteger(item.sluchatka) ? '' : 'stats-missing'}">
+                <td>${escapeHtml(isoToCs(item.datumISO))}</td>
+                <td>${escapeHtml(item.cas)}</td>
+                <td>${escapeHtml(item.nazev)}</td>
+                <td>${escapeHtml(item.typ === 'modry' ? 'modrý' : item.typ === 'hnedy' ? 'hnědý' : item.typ)}</td>
+                <td class="${Number.isInteger(item.sluchatka) ? '' : 'stats-missing-cell'}">
+                  ${Number.isInteger(item.sluchatka) ? item.sluchatka : '—'}
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+
+      <h3 class="stats-subtitle">Souhrn podle pořadu</h3>
+
+      <div class="stats-table-wrap">
+        <table class="stats-table">
+          <thead>
+            <tr>
+              <th>Pořad</th>
+              <th>Uvedení</th>
+              <th>Se záznamem</th>
+              <th>Bez záznamu</th>
+              <th>Celkem sluchátek</th>
+              <th>Průměr</th>
+              <th>Maximum</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${titleRows.map(row => `
+              <tr>
+                <td>${escapeHtml(row.title)}</td>
+                <td>${row.total}</td>
+                <td>${row.entered}</td>
+                <td>${row.missing}</td>
+                <td>${formatNumber(row.totalHeadphones, 0)}</td>
+                <td>${formatNumber(row.average, 1)}</td>
+                <td>${formatNumber(row.max, 0)}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+
+      <div class="stats-note">„—“ znamená, že počet sluchátek nebyl zadán. Neinterpretuje se jako nula.</div>
+    `;
+
+    statsExportBtn.disabled = items.length === 0;
+  }
+
+  async function loadStats() {
+    if (!statsFrom.value || !statsTo.value || statsFrom.value > statsTo.value) {
+      statsStatus.textContent = 'Vyber platné období.';
+      statsStatus.className = 'stats-status error';
+      return;
+    }
+
+    statsLoadBtn.disabled = true;
+    statsExportBtn.disabled = true;
+    statsStatus.textContent = 'Načítám data z Firestore…';
+    statsStatus.className = 'stats-status';
+    statsResults.innerHTML = '';
+
+    try {
+      statsData = await fetchAllShows();
+      renderStats();
+
+      statsStatus.textContent =
+        `Načteno ${statsFiltered().length} pořadů za období ` +
+        `${isoToCs(statsFrom.value)} – ${isoToCs(statsTo.value)}.`;
+
+    } catch (error) {
+      console.error(error);
+      statsStatus.textContent = 'Statistiky se nepodařilo načíst: ' + error.message;
+      statsStatus.className = 'stats-status error';
+    } finally {
+      statsLoadBtn.disabled = false;
+    }
+  }
+
+  function csvValue(value) {
+    return `"${String(value ?? '').replaceAll('"', '""')}"`;
+  }
+
+  function exportStatsCsv() {
+    const items = statsFiltered();
+    if (!items.length) return;
+
+    const rows = [
+      ['Datum', 'Čas', 'Pořad', 'Typ', 'Počet sluchátek'],
+      ...items.map(item => [
+        isoToCs(item.datumISO),
+        item.cas,
+        item.nazev,
+        item.typ === 'modry' ? 'modrý' : item.typ === 'hnedy' ? 'hnědý' : item.typ,
+        Number.isInteger(item.sluchatka) ? item.sluchatka : ''
+      ])
+    ];
+
+    const csv = rows
+      .map(row => row.map(csvValue).join(';'))
+      .join('\\r\\n');
+
+    const blob = new Blob(['\\uFEFF', csv], {
+      type: 'text/csv;charset=utf-8'
+    });
+
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+
+    a.href = url;
+    a.download = `sluchatka_${statsFrom.value}_${statsTo.value}.csv`;
+
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  function openStats() {
+    statsPanel.hidden = false;
+
+    if (!statsFrom.value) statsFrom.value = firstDayOfMonth();
+    if (!statsTo.value) statsTo.value = lastDayOfMonth();
+  }
+
+  function closeStats() {
+    statsPanel.hidden = true;
   }
 
   headphonesInput.addEventListener('input', () => {
     headphonesInput.value =
-      headphonesInput.value.replace(/\D/g, '').slice(0, 3);
+      headphonesInput.value.replace(/\\D/g, '').slice(0, 3);
   });
 
   headphonesInput.addEventListener('keydown', event => {
@@ -394,6 +677,20 @@
   changeShowBtn.addEventListener('click', () => {
     showSelect.focus();
     showSelect.click();
+  });
+
+  statsBtn.addEventListener('click', openStats);
+  statsCloseBtn.addEventListener('click', closeStats);
+  statsLoadBtn.addEventListener('click', loadStats);
+  statsExportBtn.addEventListener('click', exportStatsCsv);
+
+  statsFilter.addEventListener('change', () => {
+    if (statsData.length) {
+      renderStats();
+      statsStatus.textContent =
+        `Zobrazeno ${statsFiltered().length} pořadů za období ` +
+        `${isoToCs(statsFrom.value)} – ${isoToCs(statsTo.value)}.`;
+    }
   });
 
   load();

@@ -148,8 +148,178 @@ h1 {
   background: white;
   color: #374151;
   font-size: 16px;
+  margin-bottom: 10px;
+}
+
+.stats-open-btn {
+  font-weight: 700;
+}
+
+/* STATISTIKY */
+.stats-panel {
+  position: fixed;
+  inset: 12px;
+  z-index: 99999;
+  background: white;
+  border-radius: 14px;
+  box-shadow: 0 12px 40px rgba(0,0,0,.28);
+  overflow: auto;
+}
+
+.stats-header {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: #20242a;
+  color: white;
+  padding: 14px 18px;
+}
+
+.stats-header h2 {
+  margin: 0;
+  margin-right: auto;
+  font-size: 20px;
+}
+
+.stats-close-btn {
+  border: 0;
+  background: transparent;
+  color: white;
+  font-size: 28px;
+  cursor: pointer;
+}
+
+.stats-body {
+  padding: 16px;
+}
+
+.stats-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: end;
+  background: #f1f3f5;
+  padding: 14px;
+  border-radius: 10px;
+}
+
+.stats-controls label {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-weight: 700;
+}
+
+.stats-controls input,
+.stats-controls select {
+  padding: 8px;
+  border: 1px solid #aaa;
+  border-radius: 6px;
+  background: white;
+}
+
+.stats-action-btn {
+  padding: 9px 14px;
+  border: 0;
+  border-radius: 6px;
+  background: #1763a8;
+  color: white;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.stats-export-btn {
+  background: #277447;
+}
+
+.stats-action-btn:disabled {
+  opacity: .55;
+}
+
+.stats-status {
+  margin: 14px 0;
+  padding: 10px 12px;
+  border-radius: 6px;
+  background: #eef2f6;
+}
+
+.stats-status.error {
+  background: #ffe4e4;
+  color: #900;
+}
+
+.stats-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 10px;
+  margin: 16px 0;
+}
+
+.stats-card {
+  padding: 12px;
+  border: 1px solid #d6dce3;
+  border-radius: 8px;
+  background: #eef3f8;
+}
+
+.stats-card strong {
+  display: block;
+  font-size: 24px;
+  margin-top: 5px;
+}
+
+.stats-table-wrap {
+  overflow-x: auto;
+}
+
+.stats-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.stats-table th,
+.stats-table td {
+  padding: 7px 9px;
+  border-bottom: 1px solid #ddd;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.stats-table th {
+  background: #e5e7eb;
+}
+
+.stats-missing {
+  background: #fff8dc;
+}
+
+.stats-missing-cell {
+  color: #946200;
+  font-weight: 700;
+}
+
+.stats-subtitle {
+  margin: 24px 0 8px;
+}
+
+.stats-note {
+  margin-top: 10px;
+  color: #666;
+  font-size: 12px;
 }
 
 @media (min-width: 700px) {
   .app { padding-top: 34px; }
+  .stats-panel {
+    inset: 24px;
+  }
+}
+
+@media (max-width: 700px) {
+  .stats-controls > * {
+    flex: 1 1 160px;
+  }
 }

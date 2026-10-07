@@ -48,7 +48,44 @@
     </section>
 
     <button id="changeShowBtn" class="secondary-btn" type="button">Vybrat jiný pořad</button>
+    <button id="statsBtn" class="secondary-btn stats-open-btn" type="button">Statistiky</button>
   </main>
+
+  <section id="statsPanel" class="stats-panel" hidden>
+    <div class="stats-header">
+      <h2>Statistiky sluchátek</h2>
+      <button id="statsCloseBtn" class="stats-close-btn" type="button" aria-label="Zavřít">×</button>
+    </div>
+
+    <div class="stats-body">
+      <div class="stats-controls">
+        <label>
+          Od
+          <input id="statsFrom" type="date">
+        </label>
+
+        <label>
+          Do
+          <input id="statsTo" type="date">
+        </label>
+
+        <label>
+          Zobrazit
+          <select id="statsFilter">
+            <option value="all">Všechny pořady</option>
+            <option value="entered">Pouze se zadaným počtem</option>
+            <option value="missing">Pouze bez záznamu</option>
+          </select>
+        </label>
+
+        <button id="statsLoadBtn" class="stats-action-btn" type="button">NAČÍST</button>
+        <button id="statsExportBtn" class="stats-action-btn stats-export-btn" type="button" disabled>EXPORT CSV</button>
+      </div>
+
+      <div id="statsStatus" class="stats-status">Vyber období a načti statistiky.</div>
+      <div id="statsResults"></div>
+    </div>
+  </section>
 
   <script src="app.js"></script>
 </body>
