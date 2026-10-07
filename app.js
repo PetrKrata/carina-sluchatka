@@ -5,6 +5,10 @@
   const DATABASE_ID = '(default)';
   const COLLECTION = 'porady';
 
+  // PIN chrání jen proti běžnému / náhodnému přepsání.
+  // Protože jde o klientský JavaScript, není to plnohodnotné zabezpečení.
+  const EDIT_PIN = '123258';
+
   const FIRESTORE_BASE =
     `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}` +
     `/databases/${encodeURIComponent(DATABASE_ID)}/documents`;
@@ -14,11 +18,13 @@
   const showMeta = document.getElementById('showMeta');
   const headphonesInput = document.getElementById('headphonesInput');
   const saveBtn = document.getElementById('saveBtn');
+  const editBtn = document.getElementById('editBtn');
   const status = document.getElementById('status');
   const refreshBtn = document.getElementById('refreshBtn');
   const changeShowBtn = document.getElementById('changeShowBtn');
 
   let todayShows = [];
+  let editingUnlocked = false;
 
   function localISODate(date = new Date()) {
     return [
@@ -76,10 +82,6 @@
       `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}` +
       `/databases/${encodeURIComponent(DATABASE_ID)}/documents:runQuery`;
 
-    // DŮLEŽITÉ:
-    // Dotaz filtruje pouze podle datumISO.
-    // Řazení podle času provedeme až v JavaScriptu,
-    // takže Firestore nepotřebuje kompozitní index.
     const response = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -151,16 +153,17 @@
       option.textContent = 'Dnes nejsou žádné pořady';
       option.value = '';
       showSelect.appendChild(option);
+
       showSelect.disabled = true;
-      saveBtn.disabled = true;
       headphonesInput.disabled = true;
+      saveBtn.disabled = true;
+      saveBtn.hidden = false;
+      editBtn.hidden = true;
       showMeta.textContent = '';
       return;
     }
 
     showSelect.disabled = false;
-    saveBtn.disabled = false;
-    headphonesInput.disabled = false;
 
     for (const show of todayShows) {
       const option = document.createElement('option');
@@ -183,7 +186,28 @@
     return todayShows.find(show => show.id === showSelect.value) || null;
   }
 
+  function setLockedState(show) {
+    const hasSavedValue = Number.isInteger(show?.sluchatka);
+    const locked = hasSavedValue && !editingUnlocked;
+
+    headphonesInput.disabled = locked;
+    headphonesInput.readOnly = locked;
+    headphonesInput.classList.toggle('locked', locked);
+
+    saveBtn.hidden = locked;
+    saveBtn.disabled = locked;
+
+    editBtn.hidden = !locked;
+    editBtn.disabled = !locked;
+
+    if (locked) {
+      setStatus(`✓ Uloženo: ${show.sluchatka}`, 'ok');
+    }
+  }
+
   function updateSelectedShow() {
+    editingUnlocked = false;
+
     const show = selectedShow();
 
     if (!show) {
@@ -199,7 +223,45 @@
     headphonesInput.value =
       Number.isInteger(show.sluchatka) ? String(show.sluchatka) : '';
 
-    setStatus('', 'info');
+    setLockedState(show);
+
+    if (!Number.isInteger(show.sluchatka)) {
+      setStatus('', 'info');
+
+      setTimeout(() => {
+        headphonesInput.focus();
+        headphonesInput.select();
+      }, 80);
+    }
+  }
+
+  function unlockEditing() {
+    const show = selectedShow();
+    if (!show || !Number.isInteger(show.sluchatka)) return;
+
+    const pin = prompt('Zadej PIN pro editaci:');
+
+    if (pin === null) {
+      return;
+    }
+
+    if (pin !== EDIT_PIN) {
+      setStatus('Nesprávný PIN.', 'error');
+      return;
+    }
+
+    editingUnlocked = true;
+
+    headphonesInput.disabled = false;
+    headphonesInput.readOnly = false;
+    headphonesInput.classList.remove('locked');
+
+    saveBtn.hidden = false;
+    saveBtn.disabled = false;
+
+    editBtn.hidden = true;
+
+    setStatus('Editace odemčena.', 'info');
 
     setTimeout(() => {
       headphonesInput.focus();
@@ -212,6 +274,13 @@
 
     if (!show) {
       setStatus('Není vybraný pořad.', 'error');
+      return;
+    }
+
+    const isExistingValue = Number.isInteger(show.sluchatka);
+
+    if (isExistingValue && !editingUnlocked) {
+      setStatus('Pro změnu použij tlačítko Editovat.', 'error');
       return;
     }
 
@@ -254,17 +323,27 @@
       const savedCount = Number(saved.fields?.sluchatka?.integerValue);
 
       if (savedCount !== count) {
-        throw new Error('Kontrolní čtení po zápisu neodpovídá zadanému počtu.');
+        throw new Error('Kontrola po zápisu neodpovídá zadanému počtu.');
       }
 
       show.sluchatka = count;
+      editingUnlocked = false;
+
+      headphonesInput.value = String(count);
+      setLockedState(show);
       setStatus(`✓ Uloženo: ${count}`, 'ok');
+
     } catch (error) {
       console.error(error);
       setStatus('Uložení se nepodařilo.', 'error');
       alert('Uložení se nepodařilo:\n\n' + error.message);
-    } finally {
-      saveBtn.disabled = false;
+
+      // Když šlo o editaci a zápis selhal, editace zůstane odemčená.
+      if (editingUnlocked) {
+        saveBtn.hidden = false;
+        saveBtn.disabled = false;
+        editBtn.hidden = true;
+      }
     }
   }
 
@@ -274,14 +353,20 @@
 
     try {
       const currentId = showSelect.value || null;
+
       todayShows = await fetchTodayShows();
       renderShows(currentId);
 
       if (todayShows.length) {
-        setStatus(`Načteno pořadů: ${todayShows.length}`, 'info');
+        const show = selectedShow();
+
+        if (!Number.isInteger(show?.sluchatka)) {
+          setStatus(`Načteno pořadů: ${todayShows.length}`, 'info');
+        }
       } else {
         setStatus('Pro dnešek nejsou ve Firestore žádné aktivní pořady.', 'error');
       }
+
     } catch (error) {
       console.error(error);
       setStatus('Pořady se nepodařilo načíst.', 'error');
@@ -290,7 +375,8 @@
   }
 
   headphonesInput.addEventListener('input', () => {
-    headphonesInput.value = headphonesInput.value.replace(/\D/g, '').slice(0, 3);
+    headphonesInput.value =
+      headphonesInput.value.replace(/\D/g, '').slice(0, 3);
   });
 
   headphonesInput.addEventListener('keydown', event => {
@@ -302,6 +388,7 @@
 
   showSelect.addEventListener('change', updateSelectedShow);
   saveBtn.addEventListener('click', saveHeadphones);
+  editBtn.addEventListener('click', unlockEditing);
   refreshBtn.addEventListener('click', load);
 
   changeShowBtn.addEventListener('click', () => {
