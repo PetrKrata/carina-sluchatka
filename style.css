@@ -1,0 +1,139 @@
+* { box-sizing: border-box; }
+
+:root {
+  font-family: Arial, Helvetica, sans-serif;
+  color: #111827;
+  background: #f3f4f6;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: #f3f4f6;
+}
+
+.app {
+  width: min(100%, 560px);
+  margin: 0 auto;
+  padding: 18px 16px 32px;
+}
+
+.top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.eyebrow {
+  font-size: 13px;
+  color: #6b7280;
+  margin-bottom: 2px;
+}
+
+h1 {
+  margin: 0;
+  font-size: 30px;
+}
+
+.icon-btn {
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 12px;
+  background: white;
+  font-size: 25px;
+  box-shadow: 0 1px 5px rgba(0,0,0,.08);
+}
+
+.card {
+  background: white;
+  border-radius: 16px;
+  padding: 18px;
+  margin-bottom: 14px;
+  box-shadow: 0 1px 5px rgba(0,0,0,.07);
+}
+
+.date {
+  font-weight: 700;
+  margin-bottom: 16px;
+}
+
+.label {
+  display: block;
+  font-size: 14px;
+  color: #4b5563;
+  margin-bottom: 8px;
+}
+
+.select {
+  width: 100%;
+  min-height: 52px;
+  border: 1px solid #d1d5db;
+  border-radius: 12px;
+  padding: 0 12px;
+  font-size: 18px;
+  background: #fff;
+}
+
+.show-meta {
+  margin-top: 12px;
+  font-size: 14px;
+  color: #6b7280;
+}
+
+.number-input {
+  width: 100%;
+  height: 92px;
+  border: 2px solid #d1d5db;
+  border-radius: 16px;
+  text-align: center;
+  font-size: 48px;
+  font-weight: 700;
+  outline: none;
+}
+
+.number-input:focus {
+  border-color: #2563eb;
+}
+
+.save-btn {
+  width: 100%;
+  height: 60px;
+  margin-top: 14px;
+  border: 0;
+  border-radius: 14px;
+  background: #2563eb;
+  color: white;
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.save-btn:disabled {
+  opacity: .55;
+}
+
+.status {
+  min-height: 24px;
+  margin-top: 12px;
+  text-align: center;
+  font-weight: 700;
+}
+
+.status.ok { color: #087a16; }
+.status.error { color: #b00020; }
+.status.info { color: #374151; }
+
+.secondary-btn {
+  width: 100%;
+  height: 48px;
+  border: 1px solid #d1d5db;
+  border-radius: 12px;
+  background: white;
+  color: #374151;
+  font-size: 16px;
+}
+
+@media (min-width: 700px) {
+  .app { padding-top: 34px; }
+}
