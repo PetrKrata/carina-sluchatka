@@ -26,6 +26,7 @@
   const statsFrom = document.getElementById('statsFrom');
   const statsTo = document.getElementById('statsTo');
   const statsFilter = document.getElementById('statsFilter');
+  const statsTypeFilter = document.getElementById('statsTypeFilter');
   const statsLoadBtn = document.getElementById('statsLoadBtn');
   const statsExportBtn = document.getElementById('statsExportBtn');
   const statsStatus = document.getElementById('statsStatus');
@@ -257,8 +258,8 @@
     }
 
     showMeta.textContent =
-      show.typ === 'modry' ? 'Modrý pořad' :
-      show.typ === 'hnedy' ? 'Hnědý pořad' : '';
+      show.typ === 'modry' ? 'Školní' :
+      show.typ === 'hnedy' ? 'Veřejnost' : '';
 
     headphonesInput.value =
       Number.isInteger(show.sluchatka) ? String(show.sluchatka) : '';
@@ -457,9 +458,14 @@
     const from = statsFrom.value;
     const to = statsTo.value;
     const filter = statsFilter.value;
+    const typeFilter = statsTypeFilter.value;
 
     return statsData
       .filter(item => item.datumISO >= from && item.datumISO <= to)
+      .filter(item => {
+        if (typeFilter === 'all') return true;
+        return item.typ === typeFilter;
+      })
       .filter(item => {
         if (filter === 'entered') return Number.isInteger(item.sluchatka);
         if (filter === 'missing') return !Number.isInteger(item.sluchatka);
@@ -688,9 +694,9 @@
                 <td>${escapeHtml(item.nazev)}</td>
                 <td>${escapeHtml(
                   item.typ === 'modry'
-                    ? 'modrý'
+                    ? 'Školní'
                     : item.typ === 'hnedy'
-                      ? 'hnědý'
+                      ? 'Veřejnost'
                       : item.typ
                 )}</td>
 
@@ -796,9 +802,9 @@
         item.cas,
         item.nazev,
         item.typ === 'modry'
-          ? 'modrý'
+          ? 'Školní'
           : item.typ === 'hnedy'
-            ? 'hnědý'
+            ? 'Veřejnost'
             : item.typ,
         Number.isInteger(item.sluchatka)
           ? item.sluchatka
@@ -910,17 +916,24 @@
     exportStatsCsv
   );
 
+  function refreshStatsAfterFilterChange() {
+    if (statsData.length) {
+      renderStats();
+
+      statsStatus.textContent =
+        `Zobrazeno ${statsFiltered().length} pořadů za období ` +
+        `${isoToCs(statsFrom.value)} – ${isoToCs(statsTo.value)}.`;
+    }
+  }
+
   statsFilter.addEventListener(
     'change',
-    () => {
-      if (statsData.length) {
-        renderStats();
+    refreshStatsAfterFilterChange
+  );
 
-        statsStatus.textContent =
-          `Zobrazeno ${statsFiltered().length} pořadů za období ` +
-          `${isoToCs(statsFrom.value)} – ${isoToCs(statsTo.value)}.`;
-      }
-    }
+  statsTypeFilter.addEventListener(
+    'change',
+    refreshStatsAfterFilterChange
   );
 
   load();
