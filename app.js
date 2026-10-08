@@ -33,6 +33,7 @@
   const statsTo = document.getElementById('statsTo');
   const statsFilter = document.getElementById('statsFilter');
   const statsTypeFilter = document.getElementById('statsTypeFilter');
+  const statsShowFilter = document.getElementById('statsShowFilter');
   const statsLoadBtn = document.getElementById('statsLoadBtn');
   const statsExportBtn = document.getElementById('statsExportBtn');
   const statsStatus = document.getElementById('statsStatus');
@@ -525,12 +526,17 @@
     const to = statsTo.value;
     const filter = statsFilter.value;
     const typeFilter = statsTypeFilter.value;
+    const showFilter = statsShowFilter.value;
 
     return statsData
       .filter(item => item.datumISO >= from && item.datumISO <= to)
       .filter(item => {
         if (typeFilter === 'all') return true;
         return item.typ === typeFilter;
+      })
+      .filter(item => {
+        if (showFilter === 'all') return true;
+        return item.nazev.trim().replace(/\s+/g, ' ') === showFilter;
       })
       .filter(item => {
         if (filter === 'entered') return Number.isInteger(item.sluchatka);
@@ -645,6 +651,38 @@
     `;
   }
 
+  function populateStatsShowFilter() {
+    const current = statsShowFilter.value || 'all';
+
+    const titles = [...new Set(
+      statsData
+        .map(item => item.nazev.trim().replace(/\s+/g, ' '))
+        .filter(Boolean)
+    )].sort((a, b) => a.localeCompare(b, 'cs'));
+
+    statsShowFilter.innerHTML =
+      '<option value="all">Všechny pořady</option>' +
+      titles.map(title =>
+        `<option value="${escapeHtml(title)}">${escapeHtml(title)}</option>`
+      ).join('');
+
+    if (current !== 'all' && titles.includes(current)) {
+      statsShowFilter.value = current;
+    } else {
+      statsShowFilter.value = 'all';
+    }
+  }
+
+  function typeComparison(items) {
+    const school = statsSummary(items.filter(item => item.typ === 'modry'));
+    const publicRows = statsSummary(items.filter(item => item.typ === 'hnedy'));
+
+    return [
+      { label: 'Školní', ...school },
+      { label: 'Veřejnost', ...publicRows }
+    ];
+  }
+
   function renderStats() {
     const items = statsFiltered();
     const s = statsSummary(items);
@@ -690,6 +728,20 @@
     const topStartTime = startTimeRows[0] || null;
     const topShowName = showNameRows[0] || null;
 
+    const comparisonBase = statsData
+      .filter(item => item.datumISO >= statsFrom.value && item.datumISO <= statsTo.value)
+      .filter(item => {
+        if (statsShowFilter.value === 'all') return true;
+        return item.nazev.trim().replace(/\s+/g, ' ') === statsShowFilter.value;
+      })
+      .filter(item => {
+        if (statsFilter.value === 'entered') return Number.isInteger(item.sluchatka);
+        if (statsFilter.value === 'missing') return !Number.isInteger(item.sluchatka);
+        return true;
+      });
+
+    const comparisonRows = typeComparison(comparisonBase);
+
     statsResults.innerHTML = `
       <div class="stats-cards">
         <div class="stats-card">Pořadů celkem<strong>${s.total}</strong></div>
@@ -718,6 +770,37 @@
           <strong>${topShowName ? escapeHtml(topShowName.label) : '—'}</strong>
           ${topShowName ? `${formatNumber(topShowName.totalHeadphones, 0)} sluchátek` : ''}
         </div>
+      </div>
+
+      <h3 class="stats-subtitle">
+        ${statsShowFilter.value === 'all'
+          ? 'Školní × Veřejnost – všechny pořady'
+          : 'Školní × Veřejnost – ' + escapeHtml(statsShowFilter.value)}
+      </h3>
+
+      <div class="stats-table-wrap">
+        <table class="stats-table">
+          <thead>
+            <tr>
+              <th>Typ</th>
+              <th>Celkem sluchátek</th>
+              <th>Uvedení se záznamem</th>
+              <th>Průměr</th>
+              <th>Maximum</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${comparisonRows.map(row => `
+              <tr>
+                <td><strong>${escapeHtml(row.label)}</strong></td>
+                <td>${formatNumber(row.totalHeadphones, 0)}</td>
+                <td>${row.entered}</td>
+                <td>${formatNumber(row.average, 1)}</td>
+                <td>${formatNumber(row.max, 0)}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
       </div>
 
       ${renderRankingTable(
@@ -835,6 +918,7 @@
 
     try {
       statsData = await fetchAllShows();
+      populateStatsShowFilter();
       renderStats();
 
       statsStatus.textContent =
@@ -1005,6 +1089,11 @@
   );
 
   statsTypeFilter.addEventListener(
+    'change',
+    refreshStatsAfterFilterChange
+  );
+
+  statsShowFilter.addEventListener(
     'change',
     refreshStatsAfterFilterChange
   );

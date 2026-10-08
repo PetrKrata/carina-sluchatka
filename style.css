@@ -408,3 +408,8 @@ h1 {
   font-size: 16px;
   cursor: pointer;
 }
+
+#statsShowFilter {
+  min-width: 220px;
+  max-width: 360px;
+}
