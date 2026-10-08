@@ -47,9 +47,25 @@
       <div id="status" class="status" role="status" aria-live="polite"></div>
     </section>
 
-    <button id="changeShowBtn" class="secondary-btn" type="button">Vybrat jiný pořad</button>
+    <button id="changeDayBtn" class="secondary-btn" type="button">Vybrat jiný den</button>
     <button id="statsBtn" class="secondary-btn stats-open-btn" type="button">Statistiky</button>
   </main>
+
+
+  <section id="dayPickerPanel" class="day-picker-panel" hidden>
+    <div class="day-picker-card">
+      <h2>Vybrat jiný den</h2>
+      <p>Je možné doplnit údaje pouze za posledních 7 dní včetně dneška.</p>
+
+      <label for="historyDate">Datum</label>
+      <input id="historyDate" type="date">
+
+      <div class="day-picker-actions">
+        <button id="dayPickerCancelBtn" class="secondary-btn" type="button">Zrušit</button>
+        <button id="dayPickerLoadBtn" class="save-btn" type="button">NAČÍST DEN</button>
+      </div>
+    </div>
+  </section>
 
   <section id="statsPanel" class="stats-panel" hidden>
     <div class="stats-header">

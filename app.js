@@ -5,6 +5,7 @@
   const DATABASE_ID = '(default)';
   const COLLECTION = 'porady';
   const EDIT_PIN = '123258';
+  const HISTORY_PIN = '1456';
 
   const FIRESTORE_BASE =
     `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}` +
@@ -18,8 +19,13 @@
   const editBtn = document.getElementById('editBtn');
   const status = document.getElementById('status');
   const refreshBtn = document.getElementById('refreshBtn');
-  const changeShowBtn = document.getElementById('changeShowBtn');
+  const changeDayBtn = document.getElementById('changeDayBtn');
   const statsBtn = document.getElementById('statsBtn');
+
+  const dayPickerPanel = document.getElementById('dayPickerPanel');
+  const historyDate = document.getElementById('historyDate');
+  const dayPickerCancelBtn = document.getElementById('dayPickerCancelBtn');
+  const dayPickerLoadBtn = document.getElementById('dayPickerLoadBtn');
 
   const statsPanel = document.getElementById('statsPanel');
   const statsCloseBtn = document.getElementById('statsCloseBtn');
@@ -33,6 +39,7 @@
   const statsResults = document.getElementById('statsResults');
 
   let todayShows = [];
+  let selectedDateISO = localISODate();
   let editingUnlocked = false;
   let statsData = [];
 
@@ -42,6 +49,31 @@
       String(date.getMonth() + 1).padStart(2, '0'),
       String(date.getDate()).padStart(2, '0')
     ].join('-');
+  }
+
+
+  function dateFromISO(iso) {
+    const [y, m, d] = String(iso).split('-').map(Number);
+    return new Date(y, m - 1, d);
+  }
+
+  function addDaysISO(iso, days) {
+    const d = dateFromISO(iso);
+    d.setDate(d.getDate() + days);
+    return localISODate(d);
+  }
+
+  function formatISODateCsLong(iso) {
+    return dateFromISO(iso).toLocaleDateString('cs-CZ', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric'
+    });
+  }
+
+  function minHistoryDateISO() {
+    return addDaysISO(localISODate(), -6);
   }
 
   function firstDayOfMonth(date = new Date()) {
@@ -116,8 +148,7 @@
     });
   }
 
-  async function fetchTodayShows() {
-    const dateISO = localISODate();
+  async function fetchShowsForDate(dateISO) {
 
     const url =
       `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}` +
@@ -170,6 +201,10 @@
   function findDefaultShowIndex(shows) {
     if (!shows.length) return -1;
 
+    if (selectedDateISO !== localISODate()) {
+      return shows.length - 1;
+    }
+
     const now = nowMinutes();
     let bestIndex = 0;
     let bestDistance = Infinity;
@@ -191,7 +226,7 @@
 
     if (!todayShows.length) {
       const option = document.createElement('option');
-      option.textContent = 'Dnes nejsou žádné pořady';
+      option.textContent = 'Pro tento den nejsou žádné pořady';
       option.value = '';
       showSelect.appendChild(option);
 
@@ -384,12 +419,12 @@
   }
 
   async function load() {
-    dateLabel.textContent = formatDateCs();
-    setStatus('Načítám dnešní pořady…', 'info');
+    dateLabel.textContent = formatISODateCsLong(selectedDateISO);
+    setStatus('Načítám pořady…', 'info');
 
     try {
       const currentId = showSelect.value || null;
-      todayShows = await fetchTodayShows();
+      todayShows = await fetchShowsForDate(selectedDateISO);
       renderShows(currentId);
 
       if (todayShows.length) {
@@ -399,13 +434,56 @@
           setStatus(`Načteno pořadů: ${todayShows.length}`, 'info');
         }
       } else {
-        setStatus('Pro dnešek nejsou ve Firestore žádné aktivní pořady.', 'error');
+        setStatus('Pro vybraný den nejsou ve Firestore žádné aktivní pořady.', 'error');
       }
+
+      if (selectedDateISO === localISODate()) {
+        changeDayBtn.textContent = 'Vybrat jiný den';
+      } else {
+        changeDayBtn.textContent = 'Vybrat jiný den';
+      }
+
     } catch (error) {
       console.error(error);
       setStatus('Pořady se nepodařilo načíst.', 'error');
       alert('Pořady se nepodařilo načíst:\n\n' + error.message);
     }
+  }
+
+  function openDayPicker() {
+    const pin = prompt('Zadej PIN pro výběr jiného dne:');
+
+    if (pin === null) return;
+
+    if (pin !== HISTORY_PIN) {
+      setStatus('Nesprávný PIN pro výběr jiného dne.', 'error');
+      return;
+    }
+
+    const today = localISODate();
+    historyDate.min = minHistoryDateISO();
+    historyDate.max = today;
+    historyDate.value = selectedDateISO;
+    dayPickerPanel.hidden = false;
+  }
+
+  function closeDayPicker() {
+    dayPickerPanel.hidden = true;
+  }
+
+  async function loadSelectedHistoryDay() {
+    const date = historyDate.value;
+    const min = minHistoryDateISO();
+    const max = localISODate();
+
+    if (!date || date < min || date > max) {
+      alert('Vyber datum z posledních 7 dní včetně dneška.');
+      return;
+    }
+
+    selectedDateISO = date;
+    closeDayPicker();
+    await load();
   }
 
   // =========================================================
@@ -888,12 +966,19 @@
     load
   );
 
-  changeShowBtn.addEventListener(
+  changeDayBtn.addEventListener(
     'click',
-    () => {
-      showSelect.focus();
-      showSelect.click();
-    }
+    openDayPicker
+  );
+
+  dayPickerCancelBtn.addEventListener(
+    'click',
+    closeDayPicker
+  );
+
+  dayPickerLoadBtn.addEventListener(
+    'click',
+    loadSelectedHistoryDay
   );
 
   statsBtn.addEventListener(
