@@ -324,70 +324,20 @@ h1 {
   }
 }
 
-
-.day-picker-panel {
-  position: fixed;
-  inset: 0;
-  z-index: 100000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 18px;
-  background: rgba(17, 24, 39, .55);
-}
-
-.day-picker-card {
-  width: min(100%, 420px);
+.day-picker-wrap {
+  margin-bottom: 10px;
+  padding: 14px;
   background: white;
-  border-radius: 16px;
-  padding: 20px;
-  box-shadow: 0 14px 40px rgba(0,0,0,.28);
+  border-radius: 12px;
+  box-shadow: 0 1px 5px rgba(0,0,0,.07);
 }
 
-.day-picker-card h2 {
-  margin: 0 0 8px;
-}
-
-.day-picker-card p {
-  margin: 0 0 16px;
-  color: #6b7280;
-  line-height: 1.4;
-}
-
-.day-picker-card label {
-  display: block;
-  margin-bottom: 6px;
-  font-weight: 700;
-}
-
-.day-picker-card input[type="date"] {
+.day-picker {
   width: 100%;
   min-height: 48px;
   border: 1px solid #d1d5db;
   border-radius: 10px;
-  padding: 0 10px;
-  font: inherit;
+  padding: 0 12px;
+  font-size: 17px;
   background: white;
-}
-
-.day-picker-actions {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-  margin-top: 16px;
-}
-
-.day-picker-actions .secondary-btn,
-.day-picker-actions .save-btn {
-  margin: 0;
-}
-
-.history-note {
-  margin: 10px 0 0;
-  padding: 8px 10px;
-  border-radius: 8px;
-  background: #fff7db;
-  color: #755600;
-  font-size: 13px;
-  font-weight: 700;
 }
