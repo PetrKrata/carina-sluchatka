@@ -5,7 +5,7 @@
   const DATABASE_ID = '(default)';
   const COLLECTION = 'porady';
   const EDIT_PIN = '123258';
-  const DAY_SELECT_PIN = '1456';
+  const DATE_PIN = '1456';
 
   const FIRESTORE_BASE =
     `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}` +
@@ -19,10 +19,13 @@
   const editBtn = document.getElementById('editBtn');
   const status = document.getElementById('status');
   const refreshBtn = document.getElementById('refreshBtn');
-  const daySelectBtn = document.getElementById('daySelectBtn');
-  const dayPickerWrap = document.getElementById('dayPickerWrap');
-  const dayPicker = document.getElementById('dayPicker');
+  const changeDateBtn = document.getElementById('changeDateBtn');
   const statsBtn = document.getElementById('statsBtn');
+
+  const datePickerPanel = document.getElementById('datePickerPanel');
+  const datePickerCloseBtn = document.getElementById('datePickerCloseBtn');
+  const datePickerInput = document.getElementById('datePickerInput');
+  const datePickerApplyBtn = document.getElementById('datePickerApplyBtn');
 
   const statsPanel = document.getElementById('statsPanel');
   const statsCloseBtn = document.getElementById('statsCloseBtn');
@@ -48,6 +51,22 @@
     ].join('-');
   }
 
+  function addDaysISO(iso, days) {
+    const [y, m, d] = iso.split('-').map(Number);
+    const date = new Date(y, m - 1, d);
+    date.setDate(date.getDate() + days);
+    return localISODate(date);
+  }
+
+  function dateFromISO(iso) {
+    const [y, m, d] = iso.split('-').map(Number);
+    return new Date(y, m - 1, d);
+  }
+
+  function formatISODateCs(iso) {
+    return formatDateCs(dateFromISO(iso));
+  }
+
   function firstDayOfMonth(date = new Date()) {
     return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-01`;
   }
@@ -70,18 +89,6 @@
     if (!iso) return '';
     const [y, m, d] = iso.split('-');
     return `${d}.${m}.${y}`;
-  }
-
-  function isoToDate(iso) {
-    const [y, m, d] = iso.split('-').map(Number);
-    return new Date(y, m - 1, d);
-  }
-
-  function minAllowedDateISO() {
-    const d = new Date();
-    d.setHours(0, 0, 0, 0);
-    d.setDate(d.getDate() - 6);
-    return localISODate(d);
   }
 
   function minutesOfTime(time) {
@@ -132,7 +139,7 @@
     });
   }
 
-  async function fetchShowsForDate(dateISO) {
+  async function fetchShowsByDate(dateISO) {
 
     const url =
       `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}` +
@@ -185,10 +192,6 @@
   function findDefaultShowIndex(shows) {
     if (!shows.length) return -1;
 
-    if (selectedDateISO !== localISODate()) {
-      return 0;
-    }
-
     const now = nowMinutes();
     let bestIndex = 0;
     let bestDistance = Infinity;
@@ -210,7 +213,7 @@
 
     if (!todayShows.length) {
       const option = document.createElement('option');
-      option.textContent = 'Pro vybraný den nejsou žádné pořady';
+      option.textContent = 'Dnes nejsou žádné pořady';
       option.value = '';
       showSelect.appendChild(option);
 
@@ -402,22 +405,18 @@
     }
   }
 
-  async function load(dateISO = selectedDateISO) {
-    selectedDateISO = dateISO;
-
-    const selectedDate = isoToDate(selectedDateISO);
-    dateLabel.textContent = formatDateCs(selectedDate);
-
+  async function load() {
+    dateLabel.textContent = formatISODateCs(selectedDateISO);
     setStatus(
       selectedDateISO === localISODate()
         ? 'Načítám dnešní pořady…'
-        : 'Načítám pořady vybraného dne…',
+        : 'Načítám pořady pro vybraný den…',
       'info'
     );
 
     try {
       const currentId = showSelect.value || null;
-      todayShows = await fetchShowsForDate(selectedDateISO);
+      todayShows = await fetchShowsByDate(selectedDateISO);
       renderShows(currentId);
 
       if (todayShows.length) {
@@ -429,7 +428,6 @@
       } else {
         setStatus('Pro vybraný den nejsou ve Firestore žádné aktivní pořady.', 'error');
       }
-
     } catch (error) {
       console.error(error);
       setStatus('Pořady se nepodařilo načíst.', 'error');
@@ -437,49 +435,43 @@
     }
   }
 
-  function openDayPicker() {
-    const pin = prompt('Zadej PIN pro výběr jiného dne:');
+  function openDatePicker() {
+    const pin = prompt('Zadej PIN pro výběr jiného data:');
 
     if (pin === null) return;
 
-    if (pin !== DAY_SELECT_PIN) {
-      setStatus('Nesprávný PIN pro výběr dne.', 'error');
+    if (pin !== DATE_PIN) {
+      setStatus('Nesprávný PIN pro výběr data.', 'error');
       return;
     }
 
-    dayPicker.min = minAllowedDateISO();
-    dayPicker.max = localISODate();
-    dayPicker.value = selectedDateISO;
-    dayPickerWrap.hidden = false;
+    const today = localISODate();
+    const minDate = addDaysISO(today, -6);
 
-    setTimeout(() => {
-      if (typeof dayPicker.showPicker === 'function') {
-        dayPicker.showPicker();
-      } else {
-        dayPicker.focus();
-      }
-    }, 50);
+    datePickerInput.min = minDate;
+    datePickerInput.max = today;
+    datePickerInput.value = selectedDateISO;
+
+    datePickerPanel.hidden = false;
   }
 
-  function closeDayPicker() {
-    dayPickerWrap.hidden = true;
+  function closeDatePicker() {
+    datePickerPanel.hidden = true;
   }
 
-  async function handleDayChange() {
-    const chosen = dayPicker.value;
-    if (!chosen) return;
+  async function applySelectedDate() {
+    const value = datePickerInput.value;
+    const today = localISODate();
+    const minDate = addDaysISO(today, -6);
 
-    const min = minAllowedDateISO();
-    const max = localISODate();
-
-    if (chosen < min || chosen > max) {
-      setStatus('Lze vybrat jen dnešek a posledních 6 dní.', 'error');
-      dayPicker.value = selectedDateISO;
+    if (!value || value < minDate || value > today) {
+      alert('Lze vybrat pouze dnešek nebo některý z předchozích 6 dní.');
       return;
     }
 
-    closeDayPicker();
-    await load(chosen);
+    selectedDateISO = value;
+    closeDatePicker();
+    await load();
   }
 
   // =========================================================
@@ -962,14 +954,19 @@
     load
   );
 
-  daySelectBtn.addEventListener(
+  changeDateBtn.addEventListener(
     'click',
-    openDayPicker
+    openDatePicker
   );
 
-  dayPicker.addEventListener(
-    'change',
-    handleDayChange
+  datePickerCloseBtn.addEventListener(
+    'click',
+    closeDatePicker
+  );
+
+  datePickerApplyBtn.addEventListener(
+    'click',
+    applySelectedDate
   );
 
   statsBtn.addEventListener(
@@ -1012,5 +1009,5 @@
     refreshStatsAfterFilterChange
   );
 
-  load(localISODate());
+  load();
 })();

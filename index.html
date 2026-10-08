@@ -47,13 +47,30 @@
       <div id="status" class="status" role="status" aria-live="polite"></div>
     </section>
 
-    <button id="daySelectBtn" class="secondary-btn" type="button">Výběr dne</button>
-    <div id="dayPickerWrap" class="day-picker-wrap" hidden>
-      <label class="label" for="dayPicker">Vyber den</label>
-      <input id="dayPicker" class="day-picker" type="date">
-    </div>
+    <button id="changeDateBtn" class="secondary-btn" type="button">Vybrat datum</button>
     <button id="statsBtn" class="secondary-btn stats-open-btn" type="button">Statistiky</button>
   </main>
+
+
+  <section id="datePickerPanel" class="date-picker-panel" hidden>
+    <div class="date-picker-box">
+      <div class="date-picker-header">
+        <h2>Vybrat datum</h2>
+        <button id="datePickerCloseBtn" class="date-picker-close" type="button" aria-label="Zavřít">×</button>
+      </div>
+
+      <div class="date-picker-body">
+        <p>Vyber dnešek nebo některý z předchozích 6 dní.</p>
+
+        <label for="datePickerInput">Datum</label>
+        <input id="datePickerInput" type="date">
+
+        <button id="datePickerApplyBtn" class="date-picker-apply" type="button">
+          NAČÍST DEN
+        </button>
+      </div>
+    </div>
+  </section>
 
   <section id="statsPanel" class="stats-panel" hidden>
     <div class="stats-header">
