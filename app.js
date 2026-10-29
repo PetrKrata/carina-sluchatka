@@ -4,8 +4,8 @@
   const PROJECT_ID = 'carina-sluchatka';
   const DATABASE_ID = '(default)';
   const COLLECTION = 'porady';
-  const EDIT_PIN = '123258';
-  const DATE_PIN = '1456';
+  const EDIT_PIN = '1234';
+  const DATE_PIN = '1234';
 
   const FIRESTORE_BASE =
     `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}` +
