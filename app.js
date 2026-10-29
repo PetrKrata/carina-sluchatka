@@ -4,8 +4,8 @@
   const PROJECT_ID = 'carina-sluchatka';
   const DATABASE_ID = '(default)';
   const COLLECTION = 'porady';
-  const EDIT_PIN = '1234';
-  const DATE_PIN = '1234';
+  const EDIT_PIN = '123258';
+  const DATE_PIN = '1456';
 
   const FIRESTORE_BASE =
     `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}` +
@@ -447,7 +447,7 @@
     }
 
     const today = localISODate();
-    const minDate = addDaysISO(today, -6);
+    const minDate = addDaysISO(today, -29);
 
     datePickerInput.min = minDate;
     datePickerInput.max = today;
@@ -463,10 +463,10 @@
   async function applySelectedDate() {
     const value = datePickerInput.value;
     const today = localISODate();
-    const minDate = addDaysISO(today, -6);
+    const minDate = addDaysISO(today, -29);
 
     if (!value || value < minDate || value > today) {
-      alert('Lze vybrat pouze dnešek nebo některý z předchozích 6 dní.');
+      alert('Lze vybrat pouze dnešek nebo některý z předchozích 29 dní.');
       return;
     }
 
